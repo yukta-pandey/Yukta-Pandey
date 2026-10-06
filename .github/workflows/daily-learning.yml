@@ -1,0 +1,112 @@
+name: Daily C Learning
+
+on:
+  schedule:
+    - cron: "30 17 * * 1-6"
+      timezone: "Asia/Kolkata"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: daily-c-learning
+  cancel-in-progress: false
+
+jobs:
+  learn:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Complete resumable ten commit session
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "Yukta Pandey"
+          git config user.email "yuktapandey05@gmail.com"
+          mkdir -p daily
+          STATE_FILE="daily/automation-state.json"
+
+          if [ -f "$STATE_FILE" ]; then
+            DAY=$(python3 -c 'import json; s=json.load(open("daily/automation-state.json")); print(s.get("day",0)+(1 if s.get("status")=="complete" else 0))')
+            STEP=$(python3 -c 'import json; s=json.load(open("daily/automation-state.json")); print(0 if s.get("status")=="complete" else s.get("completed_step",0))')
+          else
+            DAY=1
+            STEP=0
+          fi
+
+          PADDED_DAY=$(printf "%03d" "$DAY")
+
+          while [ "$STEP" -lt 9 ]; do
+            STEP=$((STEP + 1))
+            mkdir -p "daily/day-$PADDED_DAY"
+
+            python3 - "$DAY" "$STEP" "daily/day-$PADDED_DAY/$(printf "%02d" "$STEP")_practice.c" <<'PY'
+import sys
+day=int(sys.argv[1])
+step=int(sys.argv[2])
+path=sys.argv[3]
+
+programs=[
+'''#include <stdio.h>
+int main(void){int n;scanf("%d",&n);printf("Number = %d\\n",n);return 0;}''',
+'''#include <stdio.h>
+int main(void){int a,b;scanf("%d%d",&a,&b);printf("Sum = %d\\n",a+b);return 0;}''',
+'''#include <stdio.h>
+int main(void){int n;scanf("%d",&n);printf("Square = %d\\n",n*n);return 0;}''',
+'''#include <stdio.h>
+int main(void){int n;scanf("%d",&n);printf(n%2?"Odd\\n":"Even\\n");return 0;}''',
+'''#include <stdio.h>
+int main(void){int a,b;scanf("%d%d",&a,&b);printf("%d\\n",a>b?a:b);return 0;}''',
+'''#include <stdio.h>
+int main(void){int n;scanf("%d",&n);printf(n>=40?"Pass\\n":"Fail\\n");return 0;}''',
+'''#include <stdio.h>
+int main(void){int n,i,s=0;scanf("%d",&n);for(i=1;i<=n;i++)s+=i;printf("%d\\n",s);return 0;}''',
+'''#include <stdio.h>
+int main(void){int n,r=0;scanf("%d",&n);while(n){r=r*10+n%10;n/=10;}printf("%d\\n",r);return 0;}''',
+'''#include <stdio.h>
+int main(void){int n,i,p=1;scanf("%d",&n);if(n<2)p=0;for(i=2;i*i<=n;i++)if(n%i==0)p=0;printf(p?"Prime\\n":"Not prime\\n");return 0;}'''
+]
+
+with open(path,"w") as f:
+    f.write("/* Learning day " + str(day) + ", practice " + str(step) + " */\n")
+    f.write(programs[step-1] + "\n")
+PY
+
+            python3 - "$STATE_FILE" "$DAY" "$STEP" <<'PY'
+import json,sys
+path,day,step=sys.argv[1],int(sys.argv[2]),int(sys.argv[3])
+with open(path,"w") as f:
+    json.dump({"day":day,"completed_step":step,"status":"in_progress"},f,indent=2)
+    f.write("\n")
+PY
+            git add "daily/day-$PADDED_DAY" "$STATE_FILE"
+            git commit -m "Day $PADDED_DAY practice $STEP/10"
+          done
+
+          python3 - "$STATE_FILE" "$DAY" <<'PY'
+import json,sys
+path,day=sys.argv[1],int(sys.argv[2])
+with open(path,"w") as f:
+    json.dump({"day":day,"completed_step":10,"status":"complete"},f,indent=2)
+    f.write("\n")
+PY
+
+          python3 - "$DAY" <<'PY'
+import sys
+day=int(sys.argv[1])
+path="PROGRESS.md"
+with open(path) as f:
+    text=f.read()
+section="## Automated sessions\n\nCompleted learning day: " + str(day) + "\n\nThe daily session uses nine practice commits followed by one final progress-state commit.\n"
+if "## Automated sessions" in text:
+    text=text.split("## Automated sessions",1)[0].rstrip()+"\n\n"+section
+else:
+    text=text.rstrip()+"\n\n"+section
+with open(path,"w") as f:
+    f.write(text)
+PY
+
+          git add "$STATE_FILE" PROGRESS.md
+          git commit -m "Complete learning day $PADDED_DAY progress"

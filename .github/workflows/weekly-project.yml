@@ -1,0 +1,91 @@
+name: Weekly C Project
+
+on:
+  schedule:
+    - cron: "0 11 * * 0"
+      timezone: "Asia/Kolkata"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: weekly-c-project
+  cancel-in-progress: false
+
+jobs:
+  project:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Create next weekly project
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "Yukta Pandey"
+          git config user.email "yuktapandey05@gmail.com"
+          WEEK=$(python3 - <<'PY'
+import glob
+nums=[]
+for p in glob.glob("projects/week-*"):
+    try: nums.append(int(p.rsplit("week-",1)[1]))
+    except ValueError: pass
+print((max(nums) if nums else 0)+1)
+PY
+)
+          PADDED=$(printf "%03d" "$WEEK")
+          DIR="projects/week-$PADDED"
+          mkdir -p "$DIR"
+
+          cat > "$DIR/README.md" <<EOF
+# Weekly Project $PADDED
+
+A small command-line C project that combines concepts covered during the learning journey.
+
+## Build
+
+```bash
+gcc main.c -o project
+./project
+```
+
+## Learning goal
+
+Keep the project small, understandable, and connected to the current stage of study.
+EOF
+          git add "$DIR/README.md"
+          git commit -m "Start weekly project $PADDED"
+
+          cat > "$DIR/main.c" <<'EOF'
+#include <stdio.h>
+
+int main(void)
+{
+    int choice;
+    double a, b;
+
+    printf("Simple Calculator\n");
+    printf("1. Add\n2. Subtract\n3. Multiply\n4. Divide\n");
+    printf("Choose an operation: ");
+    scanf("%d", &choice);
+
+    printf("Enter two numbers: ");
+    scanf("%lf %lf", &a, &b);
+
+    switch (choice) {
+        case 1: printf("Result = %.2f\n", a + b); break;
+        case 2: printf("Result = %.2f\n", a - b); break;
+        case 3: printf("Result = %.2f\n", a * b); break;
+        case 4:
+            if (b == 0) printf("Cannot divide by zero.\n");
+            else printf("Result = %.2f\n", a / b);
+            break;
+        default: printf("Invalid choice.\n");
+    }
+
+    return 0;
+}
+EOF
+          git add "$DIR/main.c"
+          git commit -m "Implement weekly project $PADDED"

@@ -2,7 +2,7 @@ name: Daily C Learning
 
 on:
   schedule:
-    - cron: "30 17 * * 1-6"
+    - cron: "0 4 * * *"
       timezone: "Asia/Kolkata"
   workflow_dispatch:
 
